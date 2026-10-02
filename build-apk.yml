@@ -1,0 +1,54 @@
+name: Build PD APP APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Generate Gradle wrapper
+        working-directory: android
+        run: gradle wrapper --gradle-version 8.9
+
+      - name: Set web URL
+        id: web
+        shell: bash
+        run: |
+          REPO="${GITHUB_REPOSITORY#*/}"
+          OWNER="${GITHUB_REPOSITORY_OWNER}"
+          echo "url=https://${OWNER}.github.io/${REPO}/" >> "$GITHUB_OUTPUT"
+
+      - name: Configure GitHub Pages URL
+        shell: bash
+        run: |
+          REPO="${GITHUB_REPOSITORY#*/}"
+          OWNER="${GITHUB_REPOSITORY_OWNER}"
+          URL="https://${OWNER}.github.io/${REPO}/"
+          sed -i "s#https://YOUR-USERNAME.github.io/YOUR-REPOSITORY/#${URL}#" android/app/src/main/java/com/pdapp/pwanidirectory/LauncherActivity.java
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PD-APP-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk

@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Public directory data can be read by the app.
+    match /services/{serviceId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Reports are user-submitted; authenticated users may create their own.
+    match /reports/{reportId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.phone == request.auth.token.phone_number);
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // Presence is intentionally writable by signed-in users for their own device id.
+    match /presence/{presenceId} {
+      allow read: if isAdmin();
+      allow create, update: if signedIn();
+      allow delete: if isAdmin();
+    }
+
+    match /communityPosts/{postId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    match /admins/{uid} {
+      allow read: if isAdmin() && request.auth.uid == uid;
+      allow write: if false;
+    }
+  }
+}
